@@ -8,43 +8,64 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 <style>
-    /* Sjednocený styl pro celou hru */
-    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+  /* Sjednocený styl pro celou hru */
+    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; overflow: hidden; }
     
     #bottom-panel {
         position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-        display: flex; align-items: center; gap: 20px;
-        background: #ffffff; padding: 12px 20px;
-        border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        /* Klíčová oprava: flex-wrap umožní prvkům odskočit na nový řádek, pokud není místo */
+        display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 15px;
+        background: #ffffff; padding: 12px 25px;
+        border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
         z-index: 100; color: #4a4a4a;
+        width: max-content;
+        max-width: 90vw; /* Zamezí přetečení menu mimo monitor */
     }
 
-    /* Typografie - vše stejným fontem, bez zbytečné tučnosti */
-    .game-title { font-size: 16px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: #888; }
+    /* Typografie */
+    .game-title { font-size: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #2563eb; }
     .label { font-size: 12px; font-weight: 400; color: #aaa; }
     .value { font-size: 16px; font-weight: 500; color: #4a4a4a; }
     
-    /* Dropdown - sjednocený vzhled */
-    .prop-dropdown { 
-        background: #f8f8f8; border: 1px solid #eee; border-radius: 6px; 
-        padding: 6px 10px; cursor: pointer; color: #4a4a4a; font-family: 'Inter';
-    }
+    .divider { width: 2px; height: 24px; background: #eee; border-radius: 2px; }
 
-    /* Tlačítka - jemná a ikonická */
+    /* Rozbalovací prvky (auta, mapy) */
+    .prop-dropdown { 
+        background: #f8f8f8; border: 1px solid #eee; border-radius: 8px; 
+        padding: 8px 12px; cursor: pointer; color: #4a4a4a; font-family: 'Inter'; font-weight: 500;
+        outline: none; transition: 0.2s;
+    }
+    .prop-dropdown:hover { border-color: #ccc; }
+
+    /* Akční tlačítka */
     .btn-action { 
         background: transparent; border: none; color: #888;
-        width: 35px; height: 35px; cursor: pointer; font-size: 16px; transition: 0.2s;
+        width: 38px; height: 38px; cursor: pointer; font-size: 18px; transition: 0.2s;
+        border-radius: 8px; display: flex; align-items: center; justify-content: center;
     }
-    .btn-action:hover { color: #4a4a4a; }
+    .btn-action:hover { color: #2563eb; background: #f0f4ff; }
 
-	.current { 
-    font-size: 16px; 
-    font-weight: 500; 
-    font-variant-numeric: tabular-nums; /* TOTO JE KLÍČ K OPRAVĚ */
-    width: 120px;                      /* Pevná šířka pro čas */
-    text-align: center; 
-    display: inline-block;             /* Aby šířka fungovala */
-}
+    /* Timer - tabular nums pro zamezení třesení */
+    .current { 
+        font-size: 18px; 
+        font-weight: 600; 
+        font-variant-numeric: tabular-nums; 
+        width: 100px; 
+        text-align: center; 
+        display: inline-block;
+        color: #1f2937;
+    }
+
+    /* Vnitřní kontejnery pro snazší skládání */
+    .timer-section, .action-buttons, .garage-section, .map-section {
+        display: flex; align-items: center; gap: 10px;
+    }
+
+    /* Responzivita - jak se menu chová na menších monitorech / tabletech */
+    @media (max-width: 1000px) {
+        .divider { display: none; } /* Skryje čáry pro úsporu místa */
+        #bottom-panel { padding: 10px 15px; gap: 10px; border-radius: 12px; }
+    }
 </style>
 <style>
     #start-overlay {
@@ -80,12 +101,19 @@
     <div class="game-title">DRIFT POLYGON</div>
     <div class="divider"></div>
 
+    <div class="map-section">
+        <select id="map-select" class="prop-dropdown" onchange="changeMap()">
+            <option value="default-map.json">Default Map</option>
+            <option value="city-map.json">City Map</option>
+        </select>
+    </div>
+
     <div class="garage-section">
         <select id="vehicle-select" class="prop-dropdown">
-            <option value="vehicle-truck-yellow">YELLOW</option>
-            <option value="vehicle-truck-green">GREEN</option>
-            <option value="vehicle-truck-red">RED</option>
-            <option value="vehicle-truck-purple">PURPLE</option>
+           <option value="vehicle-truck-yellow">🟡 Yellow</option>
+            <option value="vehicle-truck-green">🟢 Green</option>
+            <option value="vehicle-truck-red">🔴 Red</option>
+            <option value="vehicle-truck-purple">🟣 Purple</option>
         </select>
     </div>
     
@@ -98,13 +126,59 @@
 
     <div class="action-buttons">
         <button class="btn-action" title="Editor" onclick="window.location.href='editor.html'"><i class="fas fa-pencil"></i></button>
+        <button class="btn-action" title="Nahrát vlastní mapu z PC" onclick="document.getElementById('map-upload').click()"><i class="fas fa-folder-open"></i></button>
         <button class="btn-action" title="Fullscreen" onclick="toggleFullscreen()"><i class="fas fa-expand"></i></button>
         <button class="btn-action" title="Reset" onclick="resetGame()"><i class="fas fa-rotate-right"></i></button>
 		<button class="btn-action" title="Hudba" onclick="toggleMusic()">
+            <input type="file" id="map-upload" accept=".json" style="display: none;" onchange="loadLocalMap(event)">
+
     <i class="fas fa-music"></i>
 </button>
     </div>
 </div>
+<script>
+    function loadLocalMap(event) {
+        const file = event.target.files[0];
+        if (!file) return; // Pokud hráč výběr zruší, nic neděláme
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                // Pokusíme se soubor přečíst jako JSON
+                const jsonData = JSON.parse(e.target.result);
+                
+                // Uložíme ho do dočasné paměti prohlížeče (smaže se zavřením okna)
+                sessionStorage.setItem('customLoadedMap', JSON.stringify(jsonData));
+                
+                // Znovu načteme hru se speciálním parametrem 'local'
+                window.location.href = window.location.pathname + '?map=local';
+            } catch (err) {
+                alert('Chyba! Vybraný soubor pravděpodobně není platná mapa z editoru.');
+            }
+        };
+        // Přečteme soubor jako text
+        reader.readAsText(file);
+    }
+</script>
+<script>
+    // 1. Při načtení stránky nastavíme dropdown na mapu, která je zrovna v URL
+    window.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentMap = urlParams.get('map') || 'default-map.json';
+        const mapDropdown = document.getElementById('map-select');
+        if (mapDropdown) {
+            mapDropdown.value = currentMap;
+        }
+    });
+
+    // 2. Jakmile hráč vybere jinou mapu, stránka se znovu načte s novým parametrem
+    function changeMap() {
+        const selectedMap = document.getElementById('map-select').value;
+        // Přepíše URL na např. http://localhost:7000/index.html?map=city-map.json
+        window.location.href = window.location.pathname + '?map=' + selectedMap;
+    }
+</script>
+
 <script>
     function startGame() {
         // Skryje overlay

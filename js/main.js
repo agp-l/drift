@@ -121,29 +121,61 @@ async function loadModels() {
 
 async function init() {
 
+
 	registerAll();
 	await loadModels();
+
+	// 1. Zjistíme, jakou mapu hráč vybral v URL
+	const urlParams = new URLSearchParams(window.location.search);
+	const mapFile = urlParams.get('map') || 'default-map.json';
 
 	let customCells = null;
 	let customProps = [];
 	let spawn = null;
 
-	// Načtení mapy ze staženého souboru default-map.json
-	try {
-		const response = await fetch('./default-map.json');
-		if (response.ok) {
-			const data = await response.json();
-			if (data.track && data.track.length > 0) {
-				customCells = data.track;
-				spawn = computeSpawnPosition(customCells);
+	// 2. Načtení mapy (buď z PC, nebo ze serveru)
+	if (mapFile === 'local') {
+		// A) Hráč nahrál mapu ze svého PC
+		try {
+			const localData = sessionStorage.getItem('customLoadedMap');
+			if (localData) {
+				const data = JSON.parse(localData);
+				if (data.track && data.track.length > 0) {
+					customCells = data.track;
+					spawn = computeSpawnPosition(customCells);
+				}
+				if (data.props) {
+					customProps = data.props;
+				}
+				console.log('Úspěšně načtena lokální mapa z PC.');
+			} else {
+				console.warn('Žádná lokální mapa nenalezena v paměti.');
 			}
-			if (data.props) {
-				customProps = data.props;
-			}
+		} catch (e) {
+			console.error('Chyba při parsování lokální mapy:', e);
 		}
-	} catch (e) {
-		console.warn('Nepodařilo se stáhnout default-map.json');
+	} else {
+		// B) Hráč vybral standardní mapu (default-map.json, city-map.json atd.)
+		try {
+			const response = await fetch(mapFile);
+			if (response.ok) {
+				const data = await response.json();
+				if (data.track && data.track.length > 0) {
+					customCells = data.track;
+					spawn = computeSpawnPosition(customCells);
+				}
+				if (data.props) {
+					customProps = data.props;
+				}
+				console.log(`Úspěšně načtena mapa: ${mapFile}`);
+			} else {
+				console.warn(`Soubor ${mapFile} nebyl nalezen.`);
+			}
+		} catch (e) {
+			console.error(`Chyba při stahování mapy ${mapFile}:`, e);
+		}
 	}
+
 
 	const bounds = computeTrackBounds(customCells);
 	const hw = bounds.halfWidth;
